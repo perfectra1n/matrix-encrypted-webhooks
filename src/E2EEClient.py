@@ -146,6 +146,8 @@ class E2EEClient:
         content = {
             'msgtype': 'm.text',
             'body': f"{msg_prefix}{message}",
+            'format': 'org.matrix.custom.html',
+            'formatted_body': f'Information from the <b>{sender}</b> webhook:\n <pre><code class="language-yaml">{message}</code></pre>'
         }
         if os.environ['USE_MARKDOWN'] == 'True':
             # Markdown formatting removes YAML newlines if not padded with spaces,
