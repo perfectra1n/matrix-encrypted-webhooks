@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import json
 
 import yaml
 from aiohttp import web
@@ -13,16 +14,12 @@ class WebhookServer:
     def __init__(self):
         self.matrix_client: E2EEClient = None
         self.WEBHOOK_PORT = int(os.environ.get('WEBHOOK_PORT', 8000))
-        self.KNOWN_TOKENS = self._parse_known_tokens(
-            os.environ['KNOWN_TOKENS'])
+        self.KNOWN_TOKENS = self._parse_known_tokens()
 
-    def _parse_known_tokens(self, rooms: str) -> dict:
-        known_tokens = {}
-
-        for pairs in rooms.split(' '):
-            token, room, app_name = pairs.split(',')
-            known_tokens[token] = {'room': room, 'app_name': app_name}
-
+    def _parse_known_tokens(self) -> dict:        
+        with open('/data/webhooks.json', 'r') as f:
+            known_tokens = json.load(f)
+        
         return known_tokens
 
     def get_known_rooms(self) -> set:

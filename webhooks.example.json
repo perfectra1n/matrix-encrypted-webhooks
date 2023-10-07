@@ -1,0 +1,10 @@
+{
+    "randomToken1": {
+        "room": "room1",
+        "app_name": "app_name1"
+    },
+    "randomToken2": {
+        "room": "room2",
+        "app_name": "app_name2"
+    }
+}
