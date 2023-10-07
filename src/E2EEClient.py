@@ -111,9 +111,23 @@ class E2EEClient:
 
         if not self.greeting_sent:
             self.greeting_sent = True
-
-            greeting = f"Hi, I'm up and runnig from **{os.environ['MATRIX_DEVICE']}**, waiting for webhooks!"
-            await self.send_message(greeting, os.environ['MATRIX_ADMIN_ROOM'], 'Webhook server')
+            
+            content = {
+                "msgtype": "m.text",
+                "body": f"Hi, I'm up and running from {os.environ['MATRIX_DEVICE']}, and waiting for webhooks!",
+                "format": "org.matrix.custom.html",
+                "formatted_body": f"Hi, I'm up and running from <b>{os.environ['MATRIX_DEVICE']}</b>, and waiting for webhooks!"
+            }
+            
+            await self.client.room_send(
+                room_id=os.environ['MATRIX_ADMIN_ROOM'],
+                message_type="m.room.message",
+                content=content,
+                ignore_unverified_devices=True
+            )
+            
+            #greeting = f"Hi, I'm up and runnig from **{os.environ['MATRIX_DEVICE']}**, waiting for webhooks!"
+            #await self.send_message(greeting, os.environ['MATRIX_ADMIN_ROOM'], 'Webhook server')
 
     async def send_message(
         self,
