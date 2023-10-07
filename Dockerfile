@@ -1,4 +1,4 @@
-FROM python:3-alpine
+FROM python:3.9-alpine
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ COPY requirements.txt ./
 
 # build dependencies
 RUN set -x \
-    && apk add --no-cache --virtual .build-deps gcc musl-dev libffi-dev olm-dev \
+    && apk add --no-cache --virtual .build-deps gcc musl-dev libffi-dev olm-dev make alpine-sdk \
     && pip install --no-cache-dir -r requirements.txt \
     && apk del .build-deps
 
