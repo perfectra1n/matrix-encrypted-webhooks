@@ -111,4 +111,9 @@ class WebhookServer:
         site = web.TCPSite(runner, host="0.0.0.0", port=self.WEBHOOK_PORT)
 
         logging.info("The web server is waiting for events.")
-        await site.start()
+        try:
+            await site.start()
+        except Exception as e:
+            logging.error(f"Error starting the web server: {e}")
+            await runner.cleanup()
+            return
