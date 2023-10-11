@@ -10,9 +10,8 @@ from WebhookServer import WebhookServer
 
 async def main() -> None:
     logging.basicConfig(
-        level=logging.getLevelName(
-            os.environ.get('PYTHON_LOG_LEVEL', 'info').upper()),
-        format='%(asctime)s | %(levelname)s | module:%(name)s | %(message)s'
+        level=logging.getLevelName(os.environ.get("PYTHON_LOG_LEVEL", "info").upper()),
+        format="%(asctime)s | %(levelname)s | module:%(name)s | %(message)s",
     )
 
     webhook_server = WebhookServer()
@@ -28,5 +27,5 @@ except Exception:
     logging.critical(traceback.format_exc())
     sys.exit(1)
 except KeyboardInterrupt:
-    logging.critical('Received keyboard interrupt.')
+    logging.critical("Received keyboard interrupt.")
     sys.exit(0)
