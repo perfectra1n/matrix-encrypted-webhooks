@@ -184,7 +184,7 @@ class E2EEClient:
         except requests.RequestException:
             return False
 
-    async def get_all_values(self, d:dict):
+    async def get_all_values(self, d: dict):
         values = []
 
         if isinstance(d, dict):
@@ -239,7 +239,7 @@ class E2EEClient:
                     temp_file.flush()
                     temp_file.seek(0)
                     temp_file_path = temp_file.name
-                    
+
                     async with aiofiles.open(temp_file_path, "r+b") as f:
                         # Upload the image to the Matrix content repository
                         upload_response: UploadResponse = await self.client.upload(
@@ -247,20 +247,29 @@ class E2EEClient:
                         )
                         for item in upload_response:
                             if isinstance(item, UploadResponse):
-                                mxc_uri = dict(item)['content_uri']
-                                logging.info(dict(item)['content_uri'])
+                                mxc_uri = item.content_uri
                         payload["mxc_uri"] = mxc_uri
-                    
-
 
             # Render the template with the Slack payload and the MXC URI
             matrix_payload = template.render(payload=payload)
 
+            event_source = {
+                "content": {
+                    "body": matrix_payload,  # or any other value you want to set
+                    "msgtype": "m.image",
+                    "url": mxc_uri,  # the MXC URI of the image
+                }
+            }
+
             # Now you can use `matrix_payload` with the Matrix nio package
-            room_message = RoomMessageImage(room, mxc_uri, matrix_payload)
-            response = await self.client.room_send(room_message)
-
-
+            # room_message = RoomMessageImage(room, mxc_uri, matrix_payload)
+            response = await self.client.room_send(
+                room_id=room,
+                message_type="m.room.message",
+                content=event_source["content"],
+                ignore_unverified_devices=True,
+            )
+            logging.info(response)
 
     async def run(self) -> None:
         await self.login()
