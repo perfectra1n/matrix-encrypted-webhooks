@@ -12,4 +12,4 @@ services:
       - "8000:8000"
     volumes:
       - ./store:/config
-      - ./webhooks.json:/data/webhooks.json
+      - ./webhooks.json:/webhooks.json

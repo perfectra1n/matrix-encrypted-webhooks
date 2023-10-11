@@ -42,5 +42,6 @@ COPY docker-entrypoint.sh ./
 ENTRYPOINT [ "./docker-entrypoint.sh" ]
 
 COPY src/ ./src/
+COPY templates/ ./templates/
 
 USER matrix

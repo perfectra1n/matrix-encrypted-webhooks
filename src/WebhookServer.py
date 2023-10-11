@@ -17,7 +17,7 @@ class WebhookServer:
         self.KNOWN_TOKENS = self._parse_known_tokens()
 
     def _parse_known_tokens(self) -> dict:
-        with open("/data/webhooks.json", "r") as f:
+        with open("/webhooks.json", "r") as f:
             known_tokens = json.load(f)
 
         return known_tokens
@@ -58,6 +58,7 @@ class WebhookServer:
 
         payload = await request.read()
         data = payload.decode()
+        raw_data = payload.decode()
         logging.info(f"Received raw data: {data}")
 
         if token not in self.KNOWN_TOKENS.keys():
@@ -90,8 +91,8 @@ class WebhookServer:
         )
         await self.matrix_client.send_image_to_matrix(
             room=self.KNOWN_TOKENS[token]["room"],
-            payload=data,
-            source=self.get_source(data),
+            payload=json.loads(raw_data),
+            source=await self.get_source(raw_data),
         )
 
         return web.json_response({"success": True})

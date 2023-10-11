@@ -6,6 +6,8 @@ import sys
 import requests
 import jinja2
 from typing import Optional
+import tempfile
+import aiofiles
 
 import yaml
 from markdown import markdown
@@ -182,19 +184,24 @@ class E2EEClient:
         except requests.RequestException:
             return False
 
-    async def get_all_values(self, d):
+    async def get_all_values(self, d:dict):
         values = []
-        for key, value in d.items():
-            if isinstance(value, dict):
-                values.extend(self.get_nested_values(value))
-            elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict):
-                        values.extend(self.get_nested_values(item))
-                    else:
-                        values.append(item)
-            else:
-                values.append(value)
+
+        if isinstance(d, dict):
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    values.extend(await self.get_all_values(value))
+                elif isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, dict):
+                            values.extend(await self.get_all_values(item))
+                        else:
+                            values.append(item)
+                else:
+                    values.append(value)
+        elif isinstance(d, str):
+            values.append(d)
+        logging.info(f"Found values: {values}")
         return values
 
     async def find_image_url(self, payload):
@@ -207,16 +214,19 @@ class E2EEClient:
     async def send_image_to_matrix(self, room: str, payload: dict, source: str):
         if source is not None:
             # Fetch the Jinja2 template
-            with open(f"../templates/{source}.jinja2", "r") as f:
+            with open(f"templates/{source}.jinja2", "r") as f:
                 template_json = f.read()
 
             # Create a Jinja2 environment from the template
             environment = jinja2.Environment()
             template = environment.from_string(template_json)
 
+            # Do I need to check if there's an image here?
+
             # Check if there's an image in the payload
             image_url = await self.find_image_url(payload)
             if image_url:
+                logging.info(f"Found image URL within webhook's message: {image_url}")
                 # Download the image from the payload
                 response = requests.get(image_url)
                 image_data = response.content
@@ -224,19 +234,33 @@ class E2EEClient:
                 content_type = response.headers.get("Content-Type", "")
                 mimetype = content_type.split("/")[0]
 
-                # Upload the image to the Matrix content repository
-                upload_response: UploadResponse = await self.client.upload(
-                    image_data, mimetype
-                )
-                mxc_uri = upload_response.content_uri
-                payload["mxc_uri"] = mxc_uri
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    temp_file.write(image_data)
+                    temp_file.flush()
+                    temp_file.seek(0)
+                    temp_file_path = temp_file.name
+                    
+                    async with aiofiles.open(temp_file_path, "r+b") as f:
+                        # Upload the image to the Matrix content repository
+                        upload_response: UploadResponse = await self.client.upload(
+                            f, mimetype
+                        )
+                        for item in upload_response:
+                            if isinstance(item, UploadResponse):
+                                mxc_uri = dict(item)['content_uri']
+                                logging.info(dict(item)['content_uri'])
+                        payload["mxc_uri"] = mxc_uri
+                    
+
 
             # Render the template with the Slack payload and the MXC URI
             matrix_payload = template.render(payload=payload)
 
             # Now you can use `matrix_payload` with the Matrix nio package
-            room_message = RoomMessageImage(room, matrix_payload)
+            room_message = RoomMessageImage(room, mxc_uri, matrix_payload)
             response = await self.client.room_send(room_message)
+
+
 
     async def run(self) -> None:
         await self.login()
