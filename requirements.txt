@@ -3,3 +3,5 @@ markdown
 pyyaml
 typing_extensions
 matrix-nio[e2e]
+jinja2
+requests
