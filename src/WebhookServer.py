@@ -20,6 +20,7 @@ class WebhookServer:
         with open("/webhooks.json", "r") as f:
             known_tokens = json.load(f)
 
+        logging.info("Got the known tokens.")
         return known_tokens
 
     def get_known_rooms(self) -> set:
