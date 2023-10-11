@@ -174,55 +174,69 @@ class E2EEClient:
             ignore_unverified_devices=True,
         )
 
-    async def send_image_to_matrix():
-        # Define your Jinja2 template
-        template_string = """
-        {
-            "msgtype": "m.image",
-            "url": "{{ mxc_uri }}",
-            "info": {
-                "mimetype": "{{ mimetype }}",
-                "size": {{ size }},
-                "w": {{ width }},
-                "h": {{ height }}
-            },
-            "body": "{{ text }}"
-        }
-        """
+    async def is_image_url(self, url):
+        try:
+            response = requests.head(url)
+            content_type = response.headers.get("Content-Type", "")
+            return content_type.startswith("image/")
+        except requests.RequestException:
+            return False
 
-        # Create a Jinja2 template from the template string
-        environment = jinja2.Environment()
-        template = environment.from_string(template_string)
+    async def get_all_values(self, d):
+        values = []
+        for key, value in d.items():
+            if isinstance(value, dict):
+                values.extend(self.get_nested_values(value))
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        values.extend(self.get_nested_values(item))
+                    else:
+                        values.append(item)
+            else:
+                values.append(value)
+        return values
 
-        # Assume `slack_payload` is the incoming Slack webhook payload
-        slack_payload = {
-            "text": "Hello, world!",
-            "username": "botname",
-            "icon_emoji": ":robot_face:",
-            "image_url": "https://example.com/image.jpg",
-            "mimetype": "image/jpeg",
-            "size": 1024,
-            "width": 800,
-            "height": 600,
-        }
+    async def find_image_url(self, payload):
+        values = await self.get_all_values(payload)
+        for value in values:
+            if isinstance(value, str) and await self.is_image_url(value):
+                return value
+        return None
 
-        # Download the image from the Slack payload
-        response = requests.get(slack_payload["image_url"])
-        image_data = response.content
+    async def send_image_to_matrix(self, room: str, payload: dict, source: str):
+        if source is not None:
+            # Fetch the Jinja2 template
+            with open(f"../templates/{source}.jinja2", "r") as f:
+                template_json = f.read()
 
-        # Upload the image to the Matrix content repository
-        async_client = AsyncClient("https://matrix.org", "@user:matrix.org")
-        upload_response: UploadResponse = await async_client.upload(
-            image_data, slack_payload["mimetype"]
-        )
-        mxc_uri = upload_response.content_uri
+            # Create a Jinja2 environment from the template
+            environment = jinja2.Environment()
+            template = environment.from_string(template_json)
 
-        # Render the template with the Slack payload and the MXC URI
-        matrix_payload = template.render(mxc_uri=mxc_uri, **slack_payload)
+            # Check if there's an image in the payload
+            image_url = await self.find_image_url(payload)
+            if image_url:
+                # Download the image from the payload
+                response = requests.get(image_url)
+                image_data = response.content
 
-        # Now you can use `matrix_payload` with the Matrix nio package
-        room = RoomMessageImage("!roomid:matrix.org", matrix_payload)
-        response = await async_client.room_send(room)
+                content_type = response.headers.get("Content-Type", "")
+                mimetype = content_type.split("/")[0]
+
+                # Upload the image to the Matrix content repository
+                upload_response: UploadResponse = await self.client.upload(
+                    image_data, mimetype
+                )
+                mxc_uri = upload_response.content_uri
+                payload["mxc_uri"] = mxc_uri
+
+            # Render the template with the Slack payload and the MXC URI
+            matrix_payload = template.render(payload=payload)
+
+            # Now you can use `matrix_payload` with the Matrix nio package
+            room_message = RoomMessageImage(room, matrix_payload)
+            response = await self.client.room_send(room_message)
 
     async def run(self) -> None:
         await self.login()

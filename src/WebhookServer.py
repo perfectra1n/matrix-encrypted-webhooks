@@ -40,6 +40,14 @@ class WebhookServer:
     async def _get_index(self, request: web.Request) -> web.Response:
         return web.json_response({"success": True})
 
+    async def get_source(self, payload: dict):
+        if "embeds" in payload:  # Discord webhook
+            return "discord"
+        elif "text" in payload:  # Slack webhook
+            return "slack"
+        else:
+            return None
+
     async def _post_hook(self, request: web.Request) -> web.Response:
         message_format = os.environ["MESSAGE_FORMAT"]
         allow_unicode = os.environ["ALLOW_UNICODE"] == "True"
@@ -79,6 +87,11 @@ class WebhookServer:
         logging.debug(f"{message_format.upper()} formatted data: {data}")
         await self.matrix_client.send_message(
             data, self.KNOWN_TOKENS[token]["room"], self.KNOWN_TOKENS[token]["app_name"]
+        )
+        await self.matrix_client.send_image_to_matrix(
+            room=self.KNOWN_TOKENS[token]["room"],
+            payload=data,
+            source=self.get_source(data),
         )
 
         return web.json_response({"success": True})
