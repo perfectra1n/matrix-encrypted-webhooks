@@ -176,6 +176,21 @@ class E2EEClient:
             ignore_unverified_devices=True,
         )
 
+    async def new_send_text_message(self, room:str, source:str, payload:str):
+        # Fetch the Jinja2 template
+        with open(f"templates/text/{source}.jinja2", "r") as f:
+            template_json = f.read()
+            rendered_data = jinja2.Environment().from_string(template_json).render(payload=payload)
+
+        # Render the template with the Slack payload and the MXC URI
+        response = await self.client.room_send(
+            room_id=room,
+            message_type=rendered_data["content"]["msgtype"],
+            content=rendered_data["content"],
+            ignore_unverified_devices=True,
+        )
+        logging.info(response)
+
     async def is_image_url(self, url):
         try:
             response = requests.head(url)
@@ -186,23 +201,20 @@ class E2EEClient:
 
     async def get_all_values(self, d: dict):
         values = []
-
-        if isinstance(d, dict):
-            for key, value in d.items():
-                if isinstance(value, dict):
-                    values.extend(await self.get_all_values(value))
-                elif isinstance(value, list):
-                    for item in value:
-                        if isinstance(item, dict):
-                            values.extend(await self.get_all_values(item))
-                        else:
-                            values.append(item)
-                else:
-                    values.append(value)
-        elif isinstance(d, str):
-            values.append(d)
+        for key, value in d.items():
+            if isinstance(value, dict):
+                values.extend(await self.get_all_values(value))
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        values.extend(await self.get_all_values(item))
+                    else:
+                        values.append(item)
+            else:
+                values.append(value)
         logging.info(f"Found values: {values}")
         return values
+
 
     async def find_image_url(self, payload):
         values = await self.get_all_values(payload)
@@ -211,22 +223,32 @@ class E2EEClient:
                 return value
         return None
 
-    async def send_image_to_matrix(self, room: str, payload: dict, source: str):
+    async def send_message_to_matrix(self, room: str, payload: dict, source: str):
+        
+        # Need to handle the following cases:
+        # 1. Text only
+        # 2. Image only
+        # 3. Text and image
+        
         if source is not None:
-            # Fetch the Jinja2 template
-            with open(f"templates/{source}.jinja2", "r") as f:
-                template_json = f.read()
-
-            # Create a Jinja2 environment from the template
-            environment = jinja2.Environment()
-            template = environment.from_string(template_json)
-
             # Do I need to check if there's an image here?
 
             # Check if there's an image in the payload
             image_url = await self.find_image_url(payload)
+            
+
+            await self.new_send_text_message(room, source, payload)
+            
+            # Found image
             if image_url:
                 logging.info(f"Found image URL within webhook's message: {image_url}")
+                
+                await self.new_send_text_message(room, source, payload)
+
+                # Fetch the Jinja2 template
+                with open(f"templates/image/{source}.jinja2", "r") as f:
+                    template_json = f.read()
+
                 # Download the image from the payload
                 response = requests.get(image_url)
                 image_data = response.content
@@ -245,30 +267,27 @@ class E2EEClient:
                         upload_response: UploadResponse = await self.client.upload(
                             f, mimetype
                         )
+                        logging.info(
+                            "Response from Matrix of the picture upload was: "
+                            + str(upload_response)
+                        )
                         for item in upload_response:
                             if isinstance(item, UploadResponse):
                                 mxc_uri = item.content_uri
                         payload["mxc_uri"] = mxc_uri
-
-            # Render the template with the Slack payload and the MXC URI
-            matrix_payload = template.render(payload=payload)
-
-            event_source = {
-                "content": {
-                    "body": matrix_payload,  # or any other value you want to set
-                    "msgtype": "m.image",
-                    "url": mxc_uri,  # the MXC URI of the image
-                }
-            }
+                rendered_data = jinja2.Environment().from_string(template_json).render(payload=payload)
+                
+                # Render the template with the Slack payload and the MXC URI
+                response = await self.client.room_send(
+                    room_id=room,
+                    message_type=rendered_data["content"]["msgtype"],
+                    content=rendered_data["content"],
+                    ignore_unverified_devices=True,
+                )
 
             # Now you can use `matrix_payload` with the Matrix nio package
             # room_message = RoomMessageImage(room, mxc_uri, matrix_payload)
-            response = await self.client.room_send(
-                room_id=room,
-                message_type="m.room.message",
-                content=event_source["content"],
-                ignore_unverified_devices=True,
-            )
+
             logging.info(response)
 
     async def run(self) -> None:

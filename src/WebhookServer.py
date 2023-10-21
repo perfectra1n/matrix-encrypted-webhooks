@@ -90,7 +90,7 @@ class WebhookServer:
         await self.matrix_client.send_message(
             data, self.KNOWN_TOKENS[token]["room"], self.KNOWN_TOKENS[token]["app_name"]
         )
-        await self.matrix_client.send_image_to_matrix(
+        await self.matrix_client.send_message_to_matrix(
             room=self.KNOWN_TOKENS[token]["room"],
             payload=json.loads(raw_data),
             source=await self.get_source(raw_data),
