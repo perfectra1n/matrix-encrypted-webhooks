@@ -8,6 +8,8 @@ import jinja2
 from typing import Optional
 import tempfile
 import aiofiles
+import ast
+
 
 import yaml
 from markdown import markdown
@@ -181,13 +183,16 @@ class E2EEClient:
         with open(f"templates/text/{source}.jinja2", "r") as f:
             template_json = f.read()
             rendered_data = jinja2.Environment().from_string(template_json).render(payload=payload)
+            logging.info(type(rendered_data))
+            logging.info("Rendered data:")
+            logging.info(rendered_data)
+            rendered_data = json.loads(rendered_data)
 
         logging.info(rendered_data)
-
-        # Render the template with the Slack payload and the MXC URI
+        logging.info("Trying to send new text message to Matrix")
         response = await self.client.room_send(
             room_id=room,
-            message_type=rendered_data["content"]["msgtype"],
+            message_type="m.room.message",
             content=rendered_data["content"],
             ignore_unverified_devices=True,
         )
@@ -214,7 +219,6 @@ class E2EEClient:
                         values.append(item)
             else:
                 values.append(value)
-        logging.info(f"Found values: {values}")
         return values
 
 
@@ -234,18 +238,15 @@ class E2EEClient:
         
         if source is not None:
             # Do I need to check if there's an image here?
-
+            logging.info("Running new_send_text_message")
+            await self.new_send_text_message(room, source, payload)
+            
             # Check if there's an image in the payload
             image_url = await self.find_image_url(payload)
-            
-
-            await self.new_send_text_message(room, source, payload)
             
             # Found image
             if image_url:
                 logging.info(f"Found image URL within webhook's message: {image_url}")
-                
-                await self.new_send_text_message(room, source, payload)
 
                 # Fetch the Jinja2 template
                 with open(f"templates/image/{source}.jinja2", "r") as f:
@@ -278,6 +279,7 @@ class E2EEClient:
                                 mxc_uri = item.content_uri
                         payload["mxc_uri"] = mxc_uri
                 rendered_data = jinja2.Environment().from_string(template_json).render(payload=payload)
+                rendered_data = json.loads(rendered_data)
                 
                 # Render the template with the Slack payload and the MXC URI
                 response = await self.client.room_send(
@@ -286,11 +288,12 @@ class E2EEClient:
                     content=rendered_data["content"],
                     ignore_unverified_devices=True,
                 )
+                logging.info(response)
 
             # Now you can use `matrix_payload` with the Matrix nio package
             # room_message = RoomMessageImage(room, mxc_uri, matrix_payload)
 
-            logging.info(response)
+
 
     async def run(self) -> None:
         await self.login()

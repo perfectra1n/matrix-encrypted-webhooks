@@ -1,7 +1,6 @@
 {
     "content": {
-        "body": "Image",  # or any other value you want to set
-        "msgtype": "m.image",
-        "url": "{{ mxc_uri }}",  # the MXC URI of the image
+        "body": "{{ payload.attachments[0].text }}",
+        "msgtype": "m.text"
     }
 }
