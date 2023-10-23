@@ -182,6 +182,8 @@ class E2EEClient:
             template_json = f.read()
             rendered_data = jinja2.Environment().from_string(template_json).render(payload=payload)
 
+        logging.info(rendered_data)
+
         # Render the template with the Slack payload and the MXC URI
         response = await self.client.room_send(
             room_id=room,
